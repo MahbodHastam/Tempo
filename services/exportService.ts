@@ -1,4 +1,3 @@
-
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TimeEntry, Project } from '../types';
@@ -34,8 +33,29 @@ export const exportToPdf = (entries: TimeEntry[], projects: Project[], preferred
     const durationMs = (entry.endTime || entry.startTime) - entry.startTime;
     const amount = entry.isBillable ? formatCurrency((durationMs / 3600000) * entry.hourlyRate, preferredCurrency) : '-';
     
+    // Formatting "From" date and time
+    const fromStr = new Date(entry.startTime).toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Formatting "To" date and time
+    const toStr = entry.endTime ? new Date(entry.endTime).toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'Running...';
+    
+    // Multi-line cell content with subheadings
+    const dateTimeCell = `From: ${fromStr}\nTo: ${toStr}`;
+    
     return [
-      new Date(entry.startTime).toLocaleDateString(),
+      dateTimeCell,
       entry.description || 'No description',
       project?.name || 'No Project',
       formatDuration(durationMs),
@@ -46,11 +66,18 @@ export const exportToPdf = (entries: TimeEntry[], projects: Project[], preferred
   // Use autoTable function directly
   autoTable(doc, {
     startY: 60,
-    head: [['Date', 'Description', 'Project', 'Duration', 'Amount']],
+    head: [['Date & Time', 'Description', 'Project', 'Duration', 'Amount']],
     body: tableRows,
     theme: 'striped',
     headStyles: { fillColor: [59, 130, 246] },
-    styles: { fontSize: 9, cellPadding: 3 },
+    styles: { 
+      fontSize: 9, 
+      cellPadding: 3,
+      valign: 'middle' // Vertically center content since date cells are now taller
+    },
+    columnStyles: {
+      0: { cellWidth: 50 }, // Give more room to the date column for subheadings
+    }
   });
   
   doc.save(`tempo-report-${new Date().toISOString().split('T')[0]}.pdf`);
