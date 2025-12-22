@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TimeEntry, Project, AppState } from './types';
 import { COLORS } from './constants';
 import { formatDuration, generateId } from './utils';
-import { getSmartSuggestions } from './services/geminiService';
 import { exportToPdf } from './services/exportService';
 import { Header } from './components/Header';
 import { TrackerBar } from './components/TrackerBar';
@@ -42,7 +41,6 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [exportFilter, setExportFilter] = useState('all');
   const [newProjectName, setNewProjectName] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
 
   const descInputRef = useRef<HTMLInputElement>(null);
   const projectSelectRef = useRef<HTMLSelectElement>(null);
@@ -210,22 +208,6 @@ const App: React.FC = () => {
     setShowProjectModal(false);
   };
 
-  const handleAiImprove = async () => {
-    if (!state.activeEntry?.description) return;
-    setAiLoading(true);
-    const suggestion = await getSmartSuggestions(state.activeEntry.description);
-    if (suggestion) {
-      setState(prev => ({
-        ...prev,
-        activeEntry: {
-          ...prev.activeEntry,
-          description: suggestion.professionalDescription
-        }
-      }));
-    }
-    setAiLoading(false);
-  };
-
   const handleExport = () => {
     let entriesToExport = state.entries;
     let reportName = 'All History';
@@ -275,9 +257,7 @@ const App: React.FC = () => {
           activeEntry={state.activeEntry}
           elapsed={elapsed}
           projects={state.projects}
-          aiLoading={aiLoading}
           onUpdateActive={(updates) => setState(prev => ({ ...prev, activeEntry: { ...prev.activeEntry, ...updates } }))}
-          onAiImprove={handleAiImprove}
           onNewProject={() => setShowProjectModal(true)}
           onStart={startTimer}
           onStop={stopTimer}

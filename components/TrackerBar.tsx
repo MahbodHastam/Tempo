@@ -9,9 +9,7 @@ interface TrackerBarProps {
   activeEntry: Partial<TimeEntry> | null;
   elapsed: number;
   projects: Project[];
-  aiLoading: boolean;
   onUpdateActive: (updates: Partial<TimeEntry>) => void;
-  onAiImprove: () => void;
   onNewProject: () => void;
   onStart: () => void;
   onStop: () => void;
@@ -23,9 +21,7 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
   activeEntry,
   elapsed,
   projects,
-  aiLoading,
   onUpdateActive,
-  onAiImprove,
   onNewProject,
   onStart,
   onStop,
@@ -49,13 +45,6 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
           }}
           onChange={(e) => onUpdateActive({ description: e.target.value })}
         />
-        <button 
-          onClick={onAiImprove}
-          disabled={aiLoading}
-          className={`p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors ${aiLoading ? 'animate-pulse' : ''}`}
-        >
-          <Icons.Sparkles className="w-4 h-4" />
-        </button>
       </div>
 
       <div className="flex items-center gap-2 px-2 border-b md:border-b-0 md:border-r border-gray-100 py-2">
