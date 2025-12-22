@@ -16,10 +16,13 @@ export interface TimeEntry {
   hourlyRate: number;
 }
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 export interface AppState {
   entries: TimeEntry[];
   projects: Project[];
   activeEntry: Partial<TimeEntry> | null;
   defaultHourlyRate: number;
   preferredCurrency: 'USD' | 'IRT';
+  themeMode: ThemeMode;
 }
