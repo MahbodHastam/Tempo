@@ -12,6 +12,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content, shortcut })
   const timeoutRef = useRef<number | null>(null);
 
   const show = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => setVisible(true), 400);
   };
 
@@ -21,17 +22,24 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content, shortcut })
   };
 
   return (
-    <div className="relative flex items-center" onMouseEnter={show} onMouseLeave={hide} onFocusCapture={show} onBlurCapture={hide}>
+    <div 
+      className="relative inline-flex items-center justify-center" 
+      onMouseEnter={show} 
+      onMouseLeave={hide} 
+      onFocusCapture={show} 
+      onBlurCapture={hide}
+    >
       {children}
       {visible && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] tooltip-content pointer-events-none">
-          <div className="bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl flex items-center gap-1.5">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] flex flex-col items-center pointer-events-none w-max">
+          <div className="bg-gray-900 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl flex items-center gap-1.5 tooltip-content">
             <span>{content}</span>
             {shortcut && (
-              <span className="bg-gray-700 px-1 rounded text-[9px] uppercase">{shortcut}</span>
+              <span className="bg-white/20 px-1 rounded text-[9px] uppercase font-black">{shortcut}</span>
             )}
           </div>
-          <div className="w-2 h-2 bg-gray-900 rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
+          {/* Tooltip Arrow */}
+          <div className="w-2.5 h-2.5 bg-gray-900 rotate-45 -mt-1.5 shadow-sm"></div>
         </div>
       )}
     </div>

@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { TimeEntry, Project, AppState } from './types';
-import { COLORS } from './constants';
+import { COLORS, Icons } from './constants';
 import { formatDuration, generateId } from './utils';
 import { exportToPdf } from './services/exportService';
 import { Header } from './components/Header';
 import { TrackerBar } from './components/TrackerBar';
 import { HistoryList } from './components/HistoryList';
-import { Icons } from './constants';
 
 const STORAGE_KEY = 'tempo_app_state_v2';
 
@@ -20,7 +19,7 @@ const App: React.FC = () => {
         if (!parsed.preferredCurrency) parsed.preferredCurrency = 'USD';
         return parsed;
       } catch (e) {
-        console.error(e);
+        console.error("Failed to parse local storage", e);
       }
     }
     return {
@@ -85,17 +84,7 @@ const App: React.FC = () => {
       }
       if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        const select = projectSelectRef.current;
-        if (select) {
-          select.focus();
-          if ('showPicker' in HTMLSelectElement.prototype) {
-            try {
-              (select as any).showPicker();
-            } catch (err) {
-              console.warn("showPicker not supported or blocked", err);
-            }
-          }
-        }
+        projectSelectRef.current?.focus();
       }
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
@@ -109,10 +98,10 @@ const App: React.FC = () => {
         e.preventDefault();
         setState(prev => ({
           ...prev,
-          activeEntry: { 
+          activeEntry: prev.activeEntry ? { 
             ...prev.activeEntry, 
-            isBillable: prev.activeEntry ? !prev.activeEntry.isBillable : true 
-          }
+            isBillable: !prev.activeEntry.isBillable 
+          } : null
         }));
       }
     };
@@ -158,7 +147,7 @@ const App: React.FC = () => {
   const stopTimer = () => {
     if (!state.activeEntry) return;
     const completedEntry: TimeEntry = {
-      ...state.activeEntry as TimeEntry,
+      ...(state.activeEntry as TimeEntry),
       endTime: Date.now()
     };
     setState(prev => ({
@@ -233,7 +222,7 @@ const App: React.FC = () => {
   };
 
   const resetData = () => {
-    if (confirm("Reset all data?")) {
+    if (confirm("Reset all data? This cannot be undone.")) {
       localStorage.removeItem(STORAGE_KEY);
       window.location.reload();
     }
@@ -244,7 +233,7 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
       <Header 
         totalBilled={totalBilled} 
         currency={state.preferredCurrency} 
@@ -257,7 +246,7 @@ const App: React.FC = () => {
           activeEntry={state.activeEntry}
           elapsed={elapsed}
           projects={state.projects}
-          onUpdateActive={(updates) => setState(prev => ({ ...prev, activeEntry: { ...prev.activeEntry, ...updates } }))}
+          onUpdateActive={(updates) => setState(prev => ({ ...prev, activeEntry: prev.activeEntry ? { ...prev.activeEntry, ...updates } : updates }))}
           onNewProject={() => setShowProjectModal(true)}
           onStart={startTimer}
           onStop={stopTimer}
@@ -276,25 +265,25 @@ const App: React.FC = () => {
       </main>
 
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal">
             <h2 className="text-xl font-bold mb-6">Export Report</h2>
             <div className="space-y-6">
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 <label className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 border-gray-200">
                   <input type="radio" name="exportFilter" value="all" checked={exportFilter === 'all'} onChange={(e) => setExportFilter(e.target.value)} />
-                  <span className="text-sm font-medium">All History</span>
+                  <span className="text-sm font-semibold">All Time Entries</span>
                 </label>
                 {state.projects.map(p => (
                   <label key={p.id} className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 border-gray-200">
                     <input type="radio" name="exportFilter" value={p.id} checked={exportFilter === p.id} onChange={(e) => setExportFilter(e.target.value)} />
-                    <span className="text-sm font-medium">{p.name}</span>
+                    <span className="text-sm font-semibold">{p.name}</span>
                   </label>
                 ))}
               </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={handleExport} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg shadow-blue-200">Generate PDF</button>
-                <button onClick={() => setShowExportModal(false)} className="w-full text-gray-500 py-3 font-bold">Cancel</button>
+              <div className="flex flex-col gap-2 pt-2 border-t border-gray-50">
+                <button onClick={handleExport} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 transition-all active:scale-95">Generate PDF Report</button>
+                <button onClick={() => setShowExportModal(false)} className="w-full text-gray-500 py-3 font-bold hover:text-gray-800 transition-colors">Cancel</button>
               </div>
             </div>
           </div>
@@ -302,25 +291,25 @@ const App: React.FC = () => {
       )}
 
       {showSettingsModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal">
-            <h2 className="text-xl font-bold mb-6">Preferences</h2>
+            <h2 className="text-xl font-bold mb-6">Application Settings</h2>
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Currency</label>
-                <select className="w-full border border-gray-200 rounded-lg px-4 py-2.5" value={settingsCurrency} onChange={(e) => setSettingsCurrency(e.target.value as 'USD' | 'IRT')}>
-                  <option value="USD">Dollar (USD)</option>
+                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-[0.1em] mb-2">Currency</label>
+                <select className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white transition-colors" value={settingsCurrency} onChange={(e) => setSettingsCurrency(e.target.value as 'USD' | 'IRT')}>
+                  <option value="USD">United States Dollar (USD)</option>
                   <option value="IRT">Iranian Toman (IRT)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Hourly Rate</label>
-                <input type="number" className="w-full border border-gray-200 rounded-lg px-4 py-2.5" value={settingsRate} onChange={(e) => setSettingsRate(e.target.value)} />
+                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-[0.1em] mb-2">Default Hourly Rate</label>
+                <input type="number" className="w-full border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white transition-colors" value={settingsRate} onChange={(e) => setSettingsRate(e.target.value)} />
               </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={saveSettings} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">Save Changes</button>
-                <button onClick={resetData} className="w-full text-red-500 py-3 font-bold">Reset All Data</button>
-                <button onClick={() => setShowSettingsModal(false)} className="w-full text-gray-500 font-bold">Close</button>
+              <div className="flex flex-col gap-2 pt-4 border-t border-gray-50">
+                <button onClick={saveSettings} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all active:scale-95">Apply Preferences</button>
+                <button onClick={resetData} className="w-full text-red-500 py-3 font-bold text-sm hover:bg-red-50 rounded-lg transition-colors">Wipe All Local Data</button>
+                <button onClick={() => setShowSettingsModal(false)} className="w-full text-gray-400 font-bold py-2">Close</button>
               </div>
             </div>
           </div>
@@ -328,30 +317,52 @@ const App: React.FC = () => {
       )}
 
       {showProjectModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-modal">
-            <h2 className="text-xl font-bold mb-6">New Project</h2>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal">
+            <h2 className="text-xl font-bold mb-6">Create New Project</h2>
             <div className="space-y-4">
-              <input type="text" autoFocus className="w-full border border-gray-200 rounded-lg px-4 py-2.5" placeholder="Project Name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProject()} />
-              <button onClick={addProject} disabled={!newProjectName.trim()} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg disabled:opacity-50">Create Project</button>
-              <button onClick={() => setShowProjectModal(false)} className="w-full text-gray-500 font-bold">Cancel</button>
+              <input 
+                type="text" 
+                autoFocus 
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-lg font-medium" 
+                placeholder="Project Title" 
+                value={newProjectName} 
+                onChange={(e) => setNewProjectName(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && addProject()} 
+              />
+              <button 
+                onClick={addProject} 
+                disabled={!newProjectName.trim()} 
+                className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+              >
+                Create Project
+              </button>
+              <button onClick={() => setShowProjectModal(false)} className="w-full text-gray-400 font-bold py-2">Discard</button>
             </div>
           </div>
         </div>
       )}
 
-      <footer className="py-8 border-t border-gray-100 mt-20">
-        <div className="max-w-5xl mx-auto px-6 text-center text-xs text-gray-400 font-medium flex flex-col items-center gap-2">
-          <div>Tempo Time Tracker &bull; Privacy First</div>
-          <div className="flex gap-3 mt-1">
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">S - Start/Stop</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">D - Focus Description</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">B - Toggle Billable</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">P - Project</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">N - New Project</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">E - Export</span>
-            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">, - Settings</span>
+      <footer className="py-12 border-t border-gray-100 mt-20">
+        <div className="max-w-5xl mx-auto px-6 text-center">
+          <div className="text-[11px] font-black text-gray-300 uppercase tracking-widest mb-6">Keyboard Shortcuts</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {[
+              ['S', 'Start/Stop'],
+              ['D', 'Description'],
+              ['B', 'Billable'],
+              ['P', 'Project'],
+              ['N', 'New Project'],
+              ['E', 'Export'],
+              [',', 'Settings']
+            ].map(([key, label]) => (
+              <div key={key} className="flex items-center gap-2 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm">
+                <kbd className="font-mono font-black text-blue-600 bg-blue-50 px-1.5 rounded min-w-[20px]">{key}</kbd>
+                <span className="text-xs font-bold text-gray-500">{label}</span>
+              </div>
+            ))}
           </div>
+          <p className="mt-10 text-[10px] text-gray-300 font-medium">TEMPO &bull; NO TRACKING &bull; LOCAL ONLY</p>
         </div>
       </footer>
     </div>
