@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 
 interface TooltipProps {
@@ -23,7 +22,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content, shortcut })
 
   return (
     <div 
-      className="relative inline-flex items-center justify-center" 
+      className="relative flex items-center justify-center w-fit h-fit" 
       onMouseEnter={show} 
       onMouseLeave={hide} 
       onFocusCapture={show} 
@@ -31,7 +30,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content, shortcut })
     >
       {children}
       {visible && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] flex flex-col items-center pointer-events-none w-max">
+        <div 
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[100] flex flex-col items-center pointer-events-none"
+          style={{ width: 'max-content' }}
+        >
           <div className="bg-gray-900 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl flex items-center gap-1.5 tooltip-content">
             <span>{content}</span>
             {shortcut && (
