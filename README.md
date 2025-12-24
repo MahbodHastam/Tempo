@@ -10,12 +10,6 @@ Tempo is a minimalist time tracking application designed for focused work. It pr
 - Keyboard shortcuts for efficient operation.
 - Local storage persistence to keep your data safe.
 
-## Keyboard Shortcuts
-
-- S: Start or stop the timer.
-- E: Export.
-- N: Open the project management menu.
-
 ## Tech Stack
 
 - React 19
