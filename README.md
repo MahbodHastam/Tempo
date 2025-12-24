@@ -1,47 +1,20 @@
-# Tempo
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-Tempo is a minimalist time tracking application designed for focused work. It provides a clean interface to track your tasks, manage projects, and export your work history.
+# Run and deploy your AI Studio app
 
-## Features
+This contains everything you need to run your app locally.
 
-- Simple time tracking with start/stop functionality.
-- Project-based organization for your time entries.
-- PDF export for work history and reporting.
-- Keyboard shortcuts for efficient operation.
-- Local storage persistence to keep your data safe.
+View your app in AI Studio: https://ai.studio/apps/drive/1JuwYRbM1-ZnFdLyzkcT-PHK5Thchc0TZ
 
-## Keyboard Shortcuts
+## Run Locally
 
-- S: Start or stop the timer.
-- E: Export.
-- N: Open the project management menu.
+**Prerequisites:**  Node.js
 
-## Tech Stack
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- jsPDF for PDF generation
-
-## Installation
-
-1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-
-## Development
-
-Run the development server:
-```bash
-pnpm dev
-```
-
-## Build
-
-Build the project for production:
-```bash
-pnpm build
-```
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

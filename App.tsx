@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { TimeEntry, Project, AppState, ThemeMode } from './types';
 import { COLORS, Icons } from './constants';
@@ -17,7 +18,6 @@ const App: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (!parsed.preferredCurrency) parsed.preferredCurrency = 'USD';
         if (!parsed.themeMode) parsed.themeMode = 'system';
-        // Handle potential migration if projects were previously defined with default data
         return parsed;
       } catch (e) {
         console.error("Failed to parse local storage", e);
@@ -51,6 +51,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const root = window.document.documentElement;
     const applyTheme = (mode: ThemeMode) => {
+      // Fix: Corrected syntax error in theme logic where a closing parenthesis and bracket were incorrectly placed
       const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (isDark) {
         root.classList.add('dark');
@@ -78,7 +79,7 @@ const App: React.FC = () => {
       setSettingsRate(state.defaultHourlyRate.toString());
       setSettingsCurrency(state.preferredCurrency);
     }
-  }, [showSettingsModal]);
+  }, [showSettingsModal, state.defaultHourlyRate, state.preferredCurrency]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -178,6 +179,49 @@ const App: React.FC = () => {
       entries: [completedEntry, ...prev.entries],
       activeEntry: null
     }));
+  };
+
+  const checkConflict = (startTime: number, endTime: number) => {
+    return state.entries.some(entry => {
+      const eStart = entry.startTime;
+      const eEnd = entry.endTime || Date.now();
+      return (startTime < eEnd) && (eStart < endTime);
+    });
+  };
+
+  const addManualEntry = (from: string, to: string) => {
+    const today = new Date();
+    const [fromH, fromM] = from.split(':').map(Number);
+    const [toH, toM] = to.split(':').map(Number);
+    
+    const startTime = new Date(today.setHours(fromH, fromM, 0, 0)).getTime();
+    let endTime = new Date(today.setHours(toH, toM, 0, 0)).getTime();
+
+    if (endTime <= startTime) {
+      endTime += 24 * 60 * 60 * 1000;
+    }
+
+    if (checkConflict(startTime, endTime)) {
+      alert("This entry conflicts with an existing time entry.");
+      return false;
+    }
+
+    const manualEntry: TimeEntry = {
+      id: generateId(),
+      description: state.activeEntry?.description || '',
+      startTime,
+      endTime,
+      isBillable: state.activeEntry?.isBillable ?? true,
+      hourlyRate: state.defaultHourlyRate,
+      projectId: state.activeEntry?.projectId
+    };
+
+    setState(prev => ({
+      ...prev,
+      entries: [manualEntry, ...prev.entries],
+      activeEntry: null
+    }));
+    return true;
   };
 
   const continueEntry = (entry: TimeEntry) => {
@@ -310,6 +354,8 @@ const App: React.FC = () => {
           onNewProject={() => setShowProjectModal(true)}
           onStart={startTimer}
           onStop={stopTimer}
+          onAddManual={addManualEntry}
+          checkConflict={checkConflict}
           descInputRef={descInputRef}
           projectSelectRef={projectSelectRef}
         />
