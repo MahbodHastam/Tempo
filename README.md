@@ -1,6 +1,6 @@
 # Tempo
 
-Tempo is a minimalist time tracking application designed for focused work. It provides a clean interface to track your tasks, manage projects, and export your work history.
+Tempo is a clean, vibe-coded minimalist timer to track your tasks and export history with effortless simplicity.
 
 ## Features
 
