@@ -1,12 +1,12 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { TimeEntry, Project, AppState, ThemeMode } from './types';
 import { COLORS, Icons } from './constants';
-import { formatDuration, generateId } from './utils';
+import { formatDuration, generateId, formatCurrency } from './utils';
 import { exportToPdf } from './services/exportService';
 import { Header } from './components/Header';
 import { TrackerBar } from './components/TrackerBar';
 import { HistoryList } from './components/HistoryList';
+import { SelectionBar } from './components/SelectionBar';
 
 const STORAGE_KEY = 'tempo_app_state_v2';
 
@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [newProjectName, setNewProjectName] = useState('');
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const descInputRef = useRef<HTMLInputElement>(null);
   const projectSelectRef = useRef<HTMLSelectElement>(null);
@@ -51,7 +52,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const root = window.document.documentElement;
     const applyTheme = (mode: ThemeMode) => {
-      // Fix: Corrected syntax error in theme logic where a closing parenthesis and bracket were incorrectly placed
       const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (isDark) {
         root.classList.add('dark');
@@ -90,6 +90,7 @@ const App: React.FC = () => {
         setShowExportModal(false);
         setShowSettingsModal(false);
         setEditingProjectId(null);
+        setSelectedIds(new Set());
       }
 
       if (isInputFocused) return;
@@ -249,6 +250,9 @@ const App: React.FC = () => {
       ...prev,
       entries: prev.entries.filter(e => e.id !== id)
     }));
+    const newSelected = new Set(selectedIds);
+    newSelected.delete(id);
+    setSelectedIds(newSelected);
   };
 
   const addProject = () => {
@@ -265,6 +269,7 @@ const App: React.FC = () => {
 
   const deleteProject = (projectId: string) => {
     if (confirm("Are you sure? This will permanently delete this project and ALL its associated time entries. This cannot be undone.")) {
+      const entriesToRemove = state.entries.filter(e => e.projectId === projectId).map(e => e.id);
       setState(prev => ({
         ...prev,
         projects: prev.projects.filter(p => p.id !== projectId),
@@ -273,6 +278,9 @@ const App: React.FC = () => {
           ? { ...prev.activeEntry, projectId: undefined } 
           : prev.activeEntry
       }));
+      const newSelected = new Set(selectedIds);
+      entriesToRemove.forEach(id => newSelected.delete(id));
+      setSelectedIds(newSelected);
     }
   };
 
@@ -292,14 +300,19 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleExport = () => {
+  const handleExport = (ids?: Set<string>) => {
     let entriesToExport = state.entries;
     let reportName = 'All History';
-    if (exportFilter !== 'all') {
+
+    if (ids && ids.size > 0) {
+      entriesToExport = state.entries.filter(e => ids.has(e.id));
+      reportName = 'Selected Entries';
+    } else if (exportFilter !== 'all') {
       entriesToExport = state.entries.filter(e => e.projectId === exportFilter);
       const project = state.projects.find(p => p.id === exportFilter);
       reportName = project ? `Project: ${project.name}` : 'Unknown Project';
     }
+
     if (entriesToExport.length === 0) return;
     exportToPdf(entriesToExport, state.projects, state.preferredCurrency, reportName);
     setShowExportModal(false);
@@ -334,8 +347,36 @@ const App: React.FC = () => {
     curr.isBillable && curr.endTime ? acc + ((curr.endTime - curr.startTime) / 3600000) * curr.hourlyRate : acc, 0
   );
 
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectGroup = (ids: string[]) => {
+    const allSelectedInGroup = ids.every(id => selectedIds.has(id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allSelectedInGroup) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const selectedEntries = state.entries.filter(e => selectedIds.has(e.id));
+  const selectedDuration = selectedEntries.reduce((acc, curr) => acc + ((curr.endTime || curr.startTime) - curr.startTime), 0);
+  const selectedBilled = selectedEntries.reduce((acc, curr) => 
+    curr.isBillable && curr.endTime ? acc + ((curr.endTime - curr.startTime) / 3600000) * curr.hourlyRate : acc, 0
+  );
+
   return (
-    <div className="min-h-screen flex flex-col selection:bg-blue-100 dark:selection:bg-blue-900 selection:text-blue-900 dark:selection:text-blue-100">
+    <div className="min-h-screen flex flex-col selection:bg-blue-100 dark:selection:bg-blue-900 selection:text-blue-900 dark:selection:text-blue-100 pb-20">
       <Header 
         totalBilled={totalBilled} 
         currency={state.preferredCurrency} 
@@ -364,11 +405,23 @@ const App: React.FC = () => {
           entries={state.entries}
           projects={state.projects}
           currency={state.preferredCurrency}
+          selectedIds={selectedIds}
+          onToggleSelectId={toggleSelectId}
+          onToggleSelectGroup={toggleSelectGroup}
           onDelete={deleteEntry}
           onContinue={continueEntry}
           onUpdateDescription={updateEntryDescription}
         />
       </main>
+
+      <SelectionBar 
+        selectedCount={selectedIds.size}
+        totalDuration={selectedDuration}
+        totalBilled={selectedBilled}
+        currency={state.preferredCurrency}
+        onExport={() => handleExport(selectedIds)}
+        onClear={() => setSelectedIds(new Set())}
+      />
 
       {showExportModal && (
         <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-backdrop">
@@ -388,7 +441,7 @@ const App: React.FC = () => {
                 ))}
               </div>
               <div className="flex flex-col gap-2 pt-2 border-t border-gray-50 dark:border-dark-border">
-                <button onClick={handleExport} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 dark:shadow-none transition-all active:scale-95">Generate PDF Report</button>
+                <button onClick={() => handleExport()} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 dark:shadow-none transition-all active:scale-95">Generate PDF Report</button>
                 <button onClick={() => setShowExportModal(false)} className="w-full text-gray-500 py-3 font-bold hover:text-gray-800 dark:hover:text-gray-300 transition-colors">Cancel</button>
               </div>
             </div>

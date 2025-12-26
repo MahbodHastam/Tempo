@@ -8,6 +8,9 @@ interface HistoryListProps {
   entries: TimeEntry[];
   projects: Project[];
   currency: 'USD' | 'IRT';
+  selectedIds: Set<string>;
+  onToggleSelectId: (id: string) => void;
+  onToggleSelectGroup: (ids: string[]) => void;
   onDelete: (id: string) => void;
   onContinue: (entry: TimeEntry) => void;
   onUpdateDescription: (id: string, description: string) => void;
@@ -17,6 +20,9 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   entries,
   projects,
   currency,
+  selectedIds,
+  onToggleSelectId,
+  onToggleSelectGroup,
   onDelete,
   onContinue,
   onUpdateDescription
@@ -38,19 +44,37 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 pb-24">
       {Object.entries(sortedGroups).map(([date, groupEntries]) => {
         const dateTotal = groupEntries.reduce((acc, curr) => acc + ((curr.endTime || curr.startTime) - curr.startTime), 0);
+        const groupIds = groupEntries.map(e => e.id);
+        const allInGroupSelected = groupIds.every(id => selectedIds.has(id));
+
         return (
           <div key={date} className="animate-modal">
             <div className="flex items-center justify-between px-2 mb-4">
-              <h3 className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{date}</h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onToggleSelectGroup(groupIds)}
+                  className={`w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center ${
+                    allInGroupSelected 
+                      ? 'bg-blue-500 border-blue-500' 
+                      : 'border-gray-200 dark:border-dark-border hover:border-blue-400'
+                  }`}
+                >
+                  {allInGroupSelected && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+                <h3 className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{date}</h3>
+              </div>
               <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase flex items-center gap-2">
                 <span className="text-[10px] opacity-50">Day Total</span> 
                 <span className="tabular-nums font-mono text-gray-600 dark:text-gray-300">{formatDuration(dateTotal)}</span>
               </div>
             </div>
-            {/* Removed overflow-hidden to allow popovers to escape container bounds */}
             <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-sm border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border transition-all">
               {groupEntries.map((entry, index) => (
                 <EntryRow 
@@ -58,10 +82,11 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   entry={entry}
                   project={projects.find(p => p.id === entry.projectId)}
                   currency={currency}
+                  isSelected={selectedIds.has(entry.id)}
+                  onSelectToggle={onToggleSelectId}
                   onDelete={onDelete}
                   onContinue={onContinue}
                   onUpdateDescription={onUpdateDescription}
-                  // Inject specific rounding to maintain the "card" look without overflow-hidden
                   className={`
                     ${index === 0 ? 'rounded-t-2xl' : ''} 
                     ${index === groupEntries.length - 1 ? 'rounded-b-2xl' : ''}

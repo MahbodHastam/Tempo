@@ -7,6 +7,8 @@ interface EntryRowProps {
   entry: TimeEntry;
   project?: Project;
   currency: 'USD' | 'IRT';
+  isSelected: boolean;
+  onSelectToggle: (id: string) => void;
   className?: string;
   onDelete: (id: string) => void;
   onContinue: (entry: TimeEntry) => void;
@@ -17,6 +19,8 @@ export const EntryRow: React.FC<EntryRowProps> = ({
   entry,
   project,
   currency,
+  isSelected,
+  onSelectToggle,
   className = '',
   onDelete,
   onContinue,
@@ -51,7 +55,25 @@ export const EntryRow: React.FC<EntryRowProps> = ({
   };
 
   return (
-    <div className={`group hover:bg-gray-50/50 dark:hover:bg-white/[0.03] flex items-center px-6 py-4 transition-colors relative ${className}`}>
+    <div className={`group hover:bg-gray-50/50 dark:hover:bg-white/[0.03] flex items-center px-6 py-4 transition-colors relative ${isSelected ? 'bg-blue-50/30 dark:bg-blue-500/5' : ''} ${className}`}>
+      {/* Circular Checkbox */}
+      <div className="mr-4 flex-shrink-0">
+        <button
+          onClick={() => onSelectToggle(entry.id)}
+          className={`w-5 h-5 rounded-full border-2 transition-all flex items-center justify-center ${
+            isSelected 
+              ? 'bg-blue-500 border-blue-500 shadow-sm' 
+              : 'border-gray-200 dark:border-dark-border hover:border-blue-400 dark:hover:border-blue-500/50'
+          }`}
+        >
+          {isSelected && (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+            </svg>
+          )}
+        </button>
+      </div>
+
       <div className="flex-1 min-w-0 pr-4">
         {isEditing ? (
           <input

@@ -14,7 +14,17 @@ export const exportToPdf = (entries: TimeEntry[], projects: Project[], preferred
   doc.setFontSize(10);
   doc.setTextColor(100);
   doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-  doc.text(`Project Filter: ${reportName}`, 14, 35);
+  
+  // Logic to show/hide project filter line based on report specificity
+  const isGenericReport = reportName === 'All History' || reportName === 'Selected Entries' || reportName === 'Tempo Report';
+  let currentY = 35;
+  
+  if (!isGenericReport) {
+    doc.text(`Project Filter: ${reportName}`, 14, currentY);
+    currentY += 10;
+  } else {
+    currentY += 5; // Minimal spacing adjustment if the filter line is hidden
+  }
   
   // Summary Data
   const totalMs = entries.reduce((acc, curr) => acc + ((curr.endTime || curr.startTime) - curr.startTime), 0);
@@ -24,8 +34,9 @@ export const exportToPdf = (entries: TimeEntry[], projects: Project[], preferred
   
   doc.setFontSize(12);
   doc.setTextColor(40);
-  doc.text(`Total Duration: ${formatDuration(totalMs)}`, 14, 45);
-  doc.text(`Total Billable: ${formatCurrency(totalBilled, preferredCurrency)}`, 14, 52);
+  doc.text(`Total Duration: ${formatDuration(totalMs)}`, 14, currentY);
+  currentY += 7;
+  doc.text(`Total Billable: ${formatCurrency(totalBilled, preferredCurrency)}`, 14, currentY);
   
   // Table Data
   const tableRows = entries.map(entry => {
@@ -65,7 +76,7 @@ export const exportToPdf = (entries: TimeEntry[], projects: Project[], preferred
   
   // Use autoTable function directly
   autoTable(doc, {
-    startY: 60,
+    startY: currentY + 8,
     head: [['Date & Time', 'Description', 'Project', 'Duration', 'Amount']],
     body: tableRows,
     theme: 'striped',
