@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { TimeEntry, Project, AppState, ThemeMode } from './types';
 import { COLORS, Icons } from './constants';
 import { formatDuration, generateId, formatCurrency } from './utils';
@@ -7,6 +8,7 @@ import { Header } from './components/Header';
 import { TrackerBar } from './components/TrackerBar';
 import { HistoryList } from './components/HistoryList';
 import { SelectionBar } from './components/SelectionBar';
+import { FilterBar } from './components/FilterBar';
 
 const STORAGE_KEY = 'tempo_app_state_v2';
 
@@ -37,17 +39,28 @@ const App: React.FC = () => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [exportFilter, setExportFilter] = useState('all');
   const [newProjectName, setNewProjectName] = useState('');
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
+  const [editProjectData, setEditProjectData] = useState<Partial<Project>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [flashTrigger, setFlashTrigger] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [projectFilter, setProjectFilter] = useState('all');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
 
   const descInputRef = useRef<HTMLInputElement>(null);
   const projectSelectRef = useRef<HTMLSelectElement>(null);
 
   const [settingsRate, setSettingsRate] = useState(state.defaultHourlyRate.toString());
   const [settingsCurrency, setSettingsCurrency] = useState(state.preferredCurrency);
+
+  const isTimerRunning = !!state.activeEntry?.startTime;
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -73,6 +86,26 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  // Handle flash effect when timer starts
+  useEffect(() => {
+    if (isTimerRunning) {
+      setFlashTrigger(prev => prev + 1);
+    }
+  }, [isTimerRunning]);
+
+  // Prevent accidental page leave while timer is running
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.activeEntry && state.activeEntry.startTime) {
+        e.preventDefault();
+        e.returnValue = ''; 
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [state.activeEntry?.startTime]);
 
   useEffect(() => {
     if (showSettingsModal) {
@@ -119,6 +152,10 @@ const App: React.FC = () => {
         e.preventDefault();
         descInputRef.current?.focus();
       }
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        setShowFilters(prev => !prev);
+      }
       if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
         setState(prev => ({
@@ -158,12 +195,13 @@ const App: React.FC = () => {
   }, [elapsed, state.activeEntry]);
 
   const startTimer = () => {
+    const project = state.projects.find(p => p.id === state.activeEntry?.projectId);
     const entry: Partial<TimeEntry> = {
       id: generateId(),
       description: state.activeEntry?.description || '',
       startTime: Date.now(),
       isBillable: state.activeEntry?.isBillable ?? true,
-      hourlyRate: state.defaultHourlyRate,
+      hourlyRate: project?.hourlyRate ?? state.defaultHourlyRate,
       projectId: state.activeEntry?.projectId
     };
     setState(prev => ({ ...prev, activeEntry: entry }));
@@ -182,13 +220,14 @@ const App: React.FC = () => {
     }));
   };
 
-  const checkConflict = (startTime: number, endTime: number) => {
+  const checkConflict = useCallback((startTime: number, endTime: number, excludeId?: string) => {
     return state.entries.some(entry => {
+      if (excludeId && entry.id === excludeId) return false;
       const eStart = entry.startTime;
       const eEnd = entry.endTime || Date.now();
       return (startTime < eEnd) && (eStart < endTime);
     });
-  };
+  }, [state.entries]);
 
   const addManualEntry = (from: string, to: string) => {
     const today = new Date();
@@ -207,13 +246,14 @@ const App: React.FC = () => {
       return false;
     }
 
+    const project = state.projects.find(p => p.id === state.activeEntry?.projectId);
     const manualEntry: TimeEntry = {
       id: generateId(),
       description: state.activeEntry?.description || '',
       startTime,
       endTime,
       isBillable: state.activeEntry?.isBillable ?? true,
-      hourlyRate: state.defaultHourlyRate,
+      hourlyRate: project?.hourlyRate ?? state.defaultHourlyRate,
       projectId: state.activeEntry?.projectId
     };
 
@@ -245,6 +285,31 @@ const App: React.FC = () => {
     }));
   };
 
+  const updateEntryTime = (id: string, startTime: number, endTime?: number) => {
+    if (endTime && startTime >= endTime) {
+      alert("Start time must be before end time.");
+      return false;
+    }
+    
+    if (checkConflict(startTime, endTime || Date.now(), id)) {
+      alert("This time range conflicts with an existing entry.");
+      return false;
+    }
+
+    setState(prev => ({
+      ...prev,
+      entries: prev.entries.map(e => e.id === id ? { ...e, startTime, endTime } : e)
+    }));
+    return true;
+  };
+
+  const toggleEntryBillable = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      entries: prev.entries.map(e => e.id === id ? { ...e, isBillable: !e.isBillable } : e)
+    }));
+  };
+
   const deleteEntry = (id: string) => {
     setState(prev => ({
       ...prev,
@@ -261,7 +326,8 @@ const App: React.FC = () => {
       id: generateId(),
       name: newProjectName,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      clientName: 'Client'
+      hourlyRate: state.defaultHourlyRate,
+      currency: state.preferredCurrency
     };
     setState(prev => ({ ...prev, projects: [...prev.projects, newProj] }));
     setNewProjectName('');
@@ -284,23 +350,21 @@ const App: React.FC = () => {
     }
   };
 
-  const updateProject = (projectId: string, name: string) => {
-    if (!name.trim()) return;
+  const updateProject = (projectId: string, updates: Partial<Project>) => {
     setState(prev => ({
       ...prev,
-      projects: prev.projects.map(p => p.id === projectId ? { ...p, name } : p)
-    }));
-    setEditingProjectId(null);
-  };
-
-  const changeProjectColor = (projectId: string, color: string) => {
-    setState(prev => ({
-      ...prev,
-      projects: prev.projects.map(p => p.id === projectId ? { ...p, color } : p)
+      projects: prev.projects.map(p => p.id === projectId ? { ...p, ...updates } : p)
     }));
   };
 
-  const handleExport = (ids?: Set<string>) => {
+  const saveProjectChanges = () => {
+    if (editingProjectId) {
+      updateProject(editingProjectId, editProjectData);
+      setEditingProjectId(null);
+    }
+  };
+
+  const handleExport = async (ids?: Set<string>) => {
     let entriesToExport = state.entries;
     let reportName = 'All History';
 
@@ -314,7 +378,10 @@ const App: React.FC = () => {
     }
 
     if (entriesToExport.length === 0) return;
-    exportToPdf(entriesToExport, state.projects, state.preferredCurrency, reportName);
+    
+    setIsExporting(true);
+    await exportToPdf(entriesToExport, state.projects, state.preferredCurrency, reportName);
+    setIsExporting(false);
     setShowExportModal(false);
   };
 
@@ -343,9 +410,38 @@ const App: React.FC = () => {
     }
   };
 
-  const totalBilled = state.entries.reduce((acc, curr) => 
-    curr.isBillable && curr.endTime ? acc + ((curr.endTime - curr.startTime) / 3600000) * curr.hourlyRate : acc, 0
-  );
+  const calculateTotalsByCurrency = (entryList: TimeEntry[]) => {
+    return entryList.reduce((acc, curr) => {
+      if (!curr.isBillable || !curr.endTime) return acc;
+      const project = state.projects.find(p => p.id === curr.projectId);
+      const currency = project?.currency || state.preferredCurrency;
+      const amount = ((curr.endTime - curr.startTime) / 3600000) * curr.hourlyRate;
+      acc[currency] = (acc[currency] || 0) + amount;
+      return acc;
+    }, {} as Record<string, number>);
+  };
+
+  const filteredEntries = useMemo(() => {
+    return state.entries.filter(entry => {
+      if (searchQuery && !entry.description.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      if (projectFilter !== 'all' && entry.projectId !== projectFilter) {
+        return false;
+      }
+      if (startDateFilter) {
+        const start = new Date(startDateFilter).setHours(0, 0, 0, 0);
+        if (entry.startTime < start) return false;
+      }
+      if (endDateFilter) {
+        const end = new Date(endDateFilter).setHours(23, 59, 59, 999);
+        if (entry.startTime > end) return false;
+      }
+      return true;
+    });
+  }, [state.entries, searchQuery, projectFilter, startDateFilter, endDateFilter]);
+
+  const totalBilledByCurrency = calculateTotalsByCurrency(state.entries);
 
   const toggleSelectId = (id: string) => {
     setSelectedIds(prev => {
@@ -371,14 +467,25 @@ const App: React.FC = () => {
 
   const selectedEntries = state.entries.filter(e => selectedIds.has(e.id));
   const selectedDuration = selectedEntries.reduce((acc, curr) => acc + ((curr.endTime || curr.startTime) - curr.startTime), 0);
-  const selectedBilled = selectedEntries.reduce((acc, curr) => 
-    curr.isBillable && curr.endTime ? acc + ((curr.endTime - curr.startTime) / 3600000) * curr.hourlyRate : acc, 0
-  );
+  const selectedBilledByCurrency = calculateTotalsByCurrency(selectedEntries);
+
+  const isAnyFilterActive = searchQuery !== '' || projectFilter !== 'all' || startDateFilter !== '' || endDateFilter !== '';
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-blue-100 dark:selection:bg-blue-900 selection:text-blue-900 dark:selection:text-blue-100 pb-20">
+    <div className="min-h-screen flex flex-col relative selection:bg-blue-100 dark:selection:bg-blue-900 selection:text-blue-900 dark:selection:text-blue-100 pb-20">
+      
+      {/* Background Animated Blobs - Visible only when timer is running */}
+      <div className={`fixed inset-0 overflow-hidden pointer-events-none z-0 transition-opacity duration-1000 ${isTimerRunning ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/10 dark:bg-blue-900/10 rounded-full blur-[120px] animate-blob" />
+        <div className="absolute top-[40%] right-[-10%] w-[60%] h-[60%] bg-purple-400/10 dark:bg-indigo-900/10 rounded-full blur-[120px] animate-blob animation-delay-2000" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[40%] bg-pink-400/5 dark:bg-slate-800/20 rounded-full blur-[120px] animate-blob animation-delay-4000" />
+      </div>
+
+      {/* Start Timer Flash Overlay */}
+      <div key={`flash-${flashTrigger}`} className="fixed inset-0 pointer-events-none z-[100] bg-white dark:bg-blue-400 opacity-0 animate-flash" />
+
       <Header 
-        totalBilled={totalBilled} 
+        totalBilledByCurrency={totalBilledByCurrency} 
         currency={state.preferredCurrency} 
         themeMode={state.themeMode}
         onToggleTheme={toggleTheme}
@@ -386,23 +493,61 @@ const App: React.FC = () => {
         onSettings={() => setShowSettingsModal(true)} 
       />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-8">
-        <TrackerBar 
-          activeEntry={state.activeEntry}
-          elapsed={elapsed}
-          projects={state.projects}
-          onUpdateActive={(updates) => setState(prev => ({ ...prev, activeEntry: prev.activeEntry ? { ...prev.activeEntry, ...updates } : updates }))}
-          onNewProject={() => setShowProjectModal(true)}
-          onStart={startTimer}
-          onStop={stopTimer}
-          onAddManual={addManualEntry}
-          checkConflict={checkConflict}
-          descInputRef={descInputRef}
-          projectSelectRef={projectSelectRef}
-        />
+      {/* Sticky Tracker Bar Container */}
+      <div className="sticky top-[57px] z-30 bg-white/50 dark:bg-dark-bg/50 backdrop-blur-xl px-6 py-4 shadow-sm border-b border-gray-100/50 dark:border-slate-800/50">
+        <div className="max-w-5xl mx-auto">
+          <TrackerBar 
+            activeEntry={state.activeEntry}
+            elapsed={elapsed}
+            projects={state.projects}
+            onUpdateActive={(updates) => setState(prev => ({ ...prev, activeEntry: prev.activeEntry ? { ...prev.activeEntry, ...updates } : updates }))}
+            onNewProject={() => setShowProjectModal(true)}
+            onStart={startTimer}
+            onStop={stopTimer}
+            onAddManual={addManualEntry}
+            checkConflict={checkConflict}
+            descInputRef={descInputRef}
+            projectSelectRef={projectSelectRef}
+          />
+        </div>
+      </div>
+
+      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-8 relative z-10">
+        
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Time History</h2>
+          </div>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${showFilters || isAnyFilterActive ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-400' : 'bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+            </svg>
+            <span>{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+            {isAnyFilterActive && <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse ml-1" />}
+          </button>
+        </div>
+
+        {showFilters && (
+          <div className="animate-modal">
+            <FilterBar 
+              projects={state.projects}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              projectFilter={projectFilter}
+              setProjectFilter={setProjectFilter}
+              startDate={startDateFilter}
+              setStartDate={setStartDateFilter}
+              endDate={endDateFilter}
+              setEndDate={setEndDateFilter}
+            />
+          </div>
+        )}
 
         <HistoryList 
-          entries={state.entries}
+          entries={filteredEntries}
           projects={state.projects}
           currency={state.preferredCurrency}
           selectedIds={selectedIds}
@@ -411,14 +556,15 @@ const App: React.FC = () => {
           onDelete={deleteEntry}
           onContinue={continueEntry}
           onUpdateDescription={updateEntryDescription}
+          onUpdateEntryTime={updateEntryTime}
+          onToggleBillable={toggleEntryBillable}
         />
       </main>
 
       <SelectionBar 
         selectedCount={selectedIds.size}
         totalDuration={selectedDuration}
-        totalBilled={selectedBilled}
-        currency={state.preferredCurrency}
+        totalBilledByCurrency={selectedBilledByCurrency}
         onExport={() => handleExport(selectedIds)}
         onClear={() => setSelectedIds(new Set())}
       />
@@ -441,7 +587,13 @@ const App: React.FC = () => {
                 ))}
               </div>
               <div className="flex flex-col gap-2 pt-2 border-t border-gray-50 dark:border-dark-border">
-                <button onClick={() => handleExport()} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 dark:shadow-none transition-all active:scale-95">Generate PDF Report</button>
+                <button 
+                  disabled={isExporting}
+                  onClick={() => handleExport()} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-100 dark:shadow-none transition-all active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {isExporting ? 'Generating PDF...' : 'Generate PDF Report'}
+                </button>
                 <button onClick={() => setShowExportModal(false)} className="w-full text-gray-500 py-3 font-bold hover:text-gray-800 dark:hover:text-gray-300 transition-colors">Cancel</button>
               </div>
             </div>
@@ -490,53 +642,86 @@ const App: React.FC = () => {
                   <div key={p.id} className="p-4 border border-gray-100 dark:border-dark-border rounded-2xl bg-gray-50/50 dark:bg-white/[0.03] transition-all hover:border-gray-200 dark:hover:border-gray-700">
                     <div className="flex items-center justify-between gap-4 mb-3">
                       {editingProjectId === p.id ? (
-                        <input 
-                          autoFocus
-                          className="flex-1 bg-white dark:bg-dark-muted border border-blue-500/50 rounded-lg px-3 py-1.5 text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') updateProject(p.id, editName);
-                            if (e.key === 'Escape') setEditingProjectId(null);
-                          }}
-                          onBlur={() => updateProject(p.id, editName)}
-                        />
+                        <div className="flex-1 space-y-3">
+                           <input 
+                              autoFocus
+                              className="w-full bg-white dark:bg-dark-muted border border-blue-500/50 rounded-lg px-3 py-1.5 text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10"
+                              value={editProjectData.name || ''}
+                              placeholder="Project Name"
+                              onChange={(e) => setEditProjectData(prev => ({ ...prev, name: e.target.value }))}
+                            />
+                            <div className="flex gap-2">
+                               <div className="flex-1">
+                                  <label className="block text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase mb-1">Rate</label>
+                                  <input 
+                                    type="number"
+                                    className="w-full bg-white dark:bg-dark-muted border border-gray-200 dark:border-dark-border rounded-lg px-3 py-1.5 text-xs font-bold dark:text-white outline-none"
+                                    value={editProjectData.hourlyRate || 0}
+                                    onChange={(e) => setEditProjectData(prev => ({ ...prev, hourlyRate: parseFloat(e.target.value) || 0 }))}
+                                  />
+                               </div>
+                               <div className="flex-1">
+                                  <label className="block text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase mb-1">Currency</label>
+                                  <select 
+                                    className="w-full bg-white dark:bg-dark-muted border border-gray-200 dark:border-dark-border rounded-lg px-3 py-1.5 text-xs font-bold dark:text-white outline-none"
+                                    value={editProjectData.currency || 'USD'}
+                                    onChange={(e) => setEditProjectData(prev => ({ ...prev, currency: e.target.value as 'USD' | 'IRT' }))}
+                                  >
+                                    <option value="USD">USD</option>
+                                    <option value="IRT">IRT</option>
+                                  </select>
+                               </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <button onClick={saveProjectChanges} className="flex-1 bg-blue-600 text-white text-xs font-bold py-2 rounded-lg">Save</button>
+                              <button onClick={() => setEditingProjectId(null)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-500 text-xs font-bold py-2 rounded-lg">Cancel</button>
+                            </div>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                            <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: p.color }} />
-                           <span className="font-bold text-gray-800 dark:text-[#fdfaf7] text-base truncate">{p.name}</span>
+                           <div className="flex flex-col truncate">
+                              <span className="font-bold text-gray-800 dark:text-[#fdfaf7] text-base truncate">{p.name}</span>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                                {p.hourlyRate || state.defaultHourlyRate} {p.currency || state.preferredCurrency}/hr
+                              </span>
+                           </div>
                         </div>
                       )}
                       
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button 
-                          onClick={() => {
-                            setEditingProjectId(p.id);
-                            setEditName(p.name);
-                          }}
-                          className={`p-2 transition-colors rounded-lg ${editingProjectId === p.id ? 'text-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10'}`}
-                        >
-                          <Icons.Cog className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={() => deleteProject(p.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                        >
-                          <Icons.Trash className="w-5 h-5" />
-                        </button>
-                      </div>
+                      {!editingProjectId && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={() => {
+                              setEditingProjectId(p.id);
+                              setEditProjectData({ ...p });
+                            }}
+                            className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                          >
+                            <Icons.Cog className="w-5 h-5" />
+                          </button>
+                          <button 
+                            onClick={() => deleteProject(p.id)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            <Icons.Trash className="w-5 h-5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-dark-border/50">
-                      {COLORS.map(c => (
-                        <button 
-                          key={c}
-                          onClick={() => changeProjectColor(p.id, c)}
-                          className={`w-6 h-6 rounded-full transition-all hover:scale-125 hover:shadow-md ${p.color === c ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-dark-surface scale-110 shadow-sm' : 'opacity-60 hover:opacity-100'}`}
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </div>
+                    {!editingProjectId && (
+                      <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-dark-border/50">
+                        {COLORS.map(c => (
+                          <button 
+                            key={c}
+                            onClick={() => updateProject(p.id, { color: c })}
+                            className={`w-6 h-6 rounded-full transition-all hover:scale-125 hover:shadow-md ${p.color === c ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-dark-surface scale-110 shadow-sm' : 'opacity-60 hover:opacity-100'}`}
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -566,7 +751,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className="py-16 border-t border-gray-100 dark:border-dark-border mt-20">
+      <footer className="py-16 border-t border-gray-100 dark:border-dark-border mt-20 relative z-10">
         <div className="max-w-5xl mx-auto px-6 text-center">
           <div className="text-[11px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-8">Keyboard Shortcuts</div>
           <div className="flex flex-wrap justify-center gap-4">
@@ -577,9 +762,10 @@ const App: React.FC = () => {
               ['P', 'Project'],
               ['N', 'New Project'],
               ['E', 'Export'],
+              ['F', 'Toggle Filters'],
               [',', 'Settings']
             ].map(([key, label]) => (
-              <div key={key} className="flex items-center gap-2 bg-white dark:bg-dark-surface border border-gray-100 dark:border-dark-border px-4 py-2 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5">
+              <div key={key} className="flex items-center gap-2 bg-white/50 dark:bg-dark-surface/50 border border-gray-100 dark:border-dark-border px-4 py-2 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5">
                 <kbd className="font-mono font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md min-w-[24px] text-xs">{key}</kbd>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tight">{label}</span>
               </div>

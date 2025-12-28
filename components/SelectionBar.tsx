@@ -5,8 +5,7 @@ import { Icons } from '../constants';
 interface SelectionBarProps {
   selectedCount: number;
   totalDuration: number;
-  totalBilled: number;
-  currency: 'USD' | 'IRT';
+  totalBilledByCurrency: Record<string, number>;
   onExport: () => void;
   onClear: () => void;
 }
@@ -14,12 +13,13 @@ interface SelectionBarProps {
 export const SelectionBar: React.FC<SelectionBarProps> = ({
   selectedCount,
   totalDuration,
-  totalBilled,
-  currency,
+  totalBilledByCurrency,
   onExport,
   onClear
 }) => {
   if (selectedCount === 0) return null;
+
+  const currencies = Object.keys(totalBilledByCurrency);
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[95%] max-w-2xl animate-modal">
@@ -33,9 +33,19 @@ export const SelectionBar: React.FC<SelectionBarProps> = ({
             <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Total Time</span>
             <span className="text-sm font-mono font-bold dark:text-white">{formatDuration(totalDuration)}</span>
           </div>
-          <div className="pl-6 flex flex-col hidden sm:flex">
+          <div className="pl-6 flex flex-col hidden sm:flex gap-1">
             <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Billable</span>
-            <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(totalBilled, currency)}</span>
+            <div className="flex flex-col">
+              {currencies.length > 0 ? (
+                currencies.map(curr => (
+                  <span key={curr} className="text-xs font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(totalBilledByCurrency[curr], curr as 'USD' | 'IRT')}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm font-bold text-gray-400 dark:text-gray-600">-</span>
+              )}
+            </div>
           </div>
         </div>
 

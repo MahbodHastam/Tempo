@@ -13,8 +13,16 @@ export const formatDuration = (ms: number): string => {
 
 export const formatCurrency = (amount: number, currency: 'USD' | 'IRT' = 'USD'): string => {
   if (currency === 'IRT') {
-    return Math.round(amount).toLocaleString() + ' Toman';
+    // Formatting for Iranian Toman (localized)
+    const formattedNumber = new Intl.NumberFormat('fa-IR', {
+      useGrouping: true,
+      maximumFractionDigits: 0
+    }).format(Math.round(amount));
+    
+    // Using actual Persian script for the currency label
+    return `${formattedNumber} تومان`;
   }
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',

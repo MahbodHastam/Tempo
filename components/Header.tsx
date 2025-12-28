@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Icons } from '../constants';
 import { formatCurrency } from '../utils';
@@ -6,7 +5,7 @@ import { ThemeMode } from '../types';
 import { Tooltip } from './Tooltip';
 
 interface HeaderProps {
-  totalBilled: number;
+  totalBilledByCurrency: Record<string, number>;
   currency: 'USD' | 'IRT';
   themeMode: ThemeMode;
   onToggleTheme: () => void;
@@ -15,7 +14,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
-  totalBilled, 
+  totalBilledByCurrency, 
   currency, 
   themeMode,
   onToggleTheme,
@@ -23,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSettings 
 }) => {
   const ThemeIcon = themeMode === 'light' ? Icons.Sun : themeMode === 'dark' ? Icons.Moon : Icons.Monitor;
+  const currencies = Object.keys(totalBilledByCurrency);
 
   return (
     <header className="bg-white/80 dark:bg-dark-surface/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-border sticky top-0 z-40 px-6 py-3 flex items-center justify-between transition-colors">
@@ -59,11 +59,28 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="h-4 w-px bg-gray-200 dark:bg-dark-border mx-2 hidden sm:block" />
 
-        <div className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-black/20 px-3 py-1.5 rounded-full border border-gray-100 dark:border-dark-border">
-           <span className="text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-tight">Total Billed</span>
-           <span className="text-gray-900 dark:text-white font-black text-sm tabular-nums">
-             {formatCurrency(totalBilled, currency)}
-           </span>
+        <div className="hidden sm:flex items-center gap-2">
+           {currencies.length > 0 ? (
+             currencies.map(curr => (
+              <div key={curr} className="flex items-center gap-2.5 bg-blue-50/50 dark:bg-blue-500/5 px-3.5 py-1.5 rounded-full border border-blue-100/50 dark:border-blue-500/10 transition-all hover:bg-blue-50 dark:hover:bg-blue-500/10 group">
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="text-[8px] font-black text-blue-400 dark:text-blue-500/60 uppercase tracking-widest mb-px group-hover:text-blue-500 transition-colors">Total {curr}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-black text-xs tabular-nums">
+                    {formatCurrency(totalBilledByCurrency[curr], curr as 'USD' | 'IRT')}
+                  </span>
+                </div>
+              </div>
+             ))
+           ) : (
+            <div className="flex items-center gap-2.5 bg-gray-50 dark:bg-white/5 px-3.5 py-1.5 rounded-full border border-gray-100 dark:border-white/5 transition-all">
+               <div className="flex flex-col items-start leading-tight">
+                  <span className="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-px">Billed</span>
+                  <span className="text-gray-900 dark:text-gray-300 font-black text-xs tabular-nums">
+                    {formatCurrency(0, currency)}
+                  </span>
+               </div>
+            </div>
+           )}
         </div>
       </div>
     </header>

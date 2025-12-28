@@ -12,29 +12,39 @@
                 extend: {
                     colors: {
                         dark: {
-                            bg: '#1c1917', 
-                            surface: '#262321', 
-                            border: '#3a3532',
-                            muted: '#2d2926'
+                            bg: '#0f172a', 
+                            surface: '#1e293b', 
+                            border: '#334155',
+                            muted: '#0f172a'
                         }
-                    }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Vazirmatn', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    },
                 }
             }
         }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Vazirmatn:wght@100..900&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', 'Vazirmatn', sans-serif;
             overflow-x: hidden;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            transition: background-color 0.5s ease;
         }
 
         :focus-visible {
             outline: 2px solid #3b82f6;
             outline-offset: 2px;
+        }
+
+        @keyframes blob-float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(40px, -60px) scale(1.1); }
+            66% { transform: translate(-30px, 30px) scale(0.95); }
         }
 
         @keyframes slideFadeIn {
@@ -53,6 +63,23 @@
             to { opacity: 1; }
         }
 
+        @keyframes flash-white {
+            0% { opacity: 0; }
+            10% { opacity: 0.4; }
+            100% { opacity: 0; }
+        }
+
+        .animate-blob {
+            animation: blob-float 25s infinite alternate ease-in-out;
+        }
+
+        .animate-flash {
+            animation: flash-white 0.8s ease-out forwards;
+        }
+
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+
         .animate-modal {
             animation: slideFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
@@ -63,6 +90,12 @@
 
         .tooltip-content {
             animation: slideFadeIn 0.15s ease-out forwards;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
     </style>
     <script>
@@ -91,12 +124,13 @@
     "react/": "https://esm.sh/react@^19.2.3/",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "vite": "https://esm.sh/vite@^7.3.0",
-    "path": "https://esm.sh/path@^0.12.7"
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>
 </head>
-<body class="bg-[#fcfcfc] dark:bg-dark-bg text-[#1a1a1a] dark:text-[#fdfaf7]">
+<body class="bg-slate-50 dark:bg-dark-bg text-[#1a1a1a] dark:text-[#f1f5f9]">
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
 </body>

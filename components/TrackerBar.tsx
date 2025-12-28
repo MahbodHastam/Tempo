@@ -18,6 +18,16 @@ interface TrackerBarProps {
   projectSelectRef: React.RefObject<HTMLSelectElement>;
 }
 
+const getDefaultFrom = () => {
+  const d = new Date();
+  d.setHours(d.getHours() - 1);
+  return d.toTimeString().slice(0, 5);
+};
+
+const getDefaultTo = () => {
+  return new Date().toTimeString().slice(0, 5);
+};
+
 export const TrackerBar: React.FC<TrackerBarProps> = ({
   activeEntry,
   elapsed,
@@ -32,14 +42,8 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
   projectSelectRef
 }) => {
   const [isManual, setIsManual] = useState(false);
-  const [manualFrom, setManualFrom] = useState(() => {
-    const d = new Date();
-    d.setHours(d.getHours() - 1);
-    return d.toTimeString().slice(0, 5);
-  });
-  const [manualTo, setManualTo] = useState(() => {
-    return new Date().toTimeString().slice(0, 5);
-  });
+  const [manualFrom, setManualFrom] = useState(getDefaultFrom);
+  const [manualTo, setManualTo] = useState(getDefaultTo);
 
   const isRunning = !!activeEntry?.startTime;
 
@@ -56,7 +60,12 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
 
   const handleManualAdd = () => {
     if (hasConflict) return;
-    onAddManual(manualFrom, manualTo);
+    const success = onAddManual(manualFrom, manualTo);
+    if (success) {
+      const now = getDefaultTo();
+      setManualFrom(now);
+      setManualTo(now);
+    }
   };
 
   const calculateManualDuration = () => {
@@ -68,15 +77,15 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
   };
 
   return (
-    <div className={`rounded-2xl shadow-xl border transition-all duration-300 ${isRunning ? 'ring-4 ring-blue-500/10' : ''} bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border mb-10`}>
+    <div className="transition-all duration-300">
       {/* Main Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center p-2 gap-2">
-        <div className="flex-1 flex items-center px-4 gap-3 border-b md:border-b-0 md:border-r border-gray-100 dark:border-dark-border py-2">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center py-1 gap-2">
+        <div className="flex-1 flex items-center px-2 gap-3 border-b md:border-b-0 md:border-r border-gray-100 dark:border-slate-800 py-2">
           <input 
             ref={descInputRef}
             type="text" 
             placeholder="What are you working on?"
-            className="w-full focus:outline-none bg-transparent text-gray-800 dark:text-[#fdfaf7] placeholder-gray-400 dark:placeholder-gray-600 text-lg font-medium"
+            className="w-full focus:outline-none bg-transparent text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-lg font-medium"
             value={activeEntry?.description || ''}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -92,11 +101,11 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-2 px-2 border-b md:border-b-0 md:border-r border-gray-100 dark:border-dark-border py-2">
+        <div className="flex items-center gap-2 px-2 border-b md:border-b-0 md:border-r border-gray-100 dark:border-slate-800 py-2">
            <Tooltip content="Select Project" shortcut="P">
              <select 
                ref={projectSelectRef}
-               className="bg-transparent text-sm font-bold text-gray-500 dark:text-gray-400 focus:outline-none cursor-pointer px-2 py-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+               className="bg-transparent text-sm font-bold text-gray-500 dark:text-slate-400 focus:outline-none cursor-pointer px-2 py-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                value={activeEntry?.projectId || ''}
                onChange={(e) => onUpdateActive({ projectId: e.target.value })}
              >
@@ -109,7 +118,7 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
            <Tooltip content="New Project" shortcut="N">
              <button 
               onClick={onNewProject}
-              className="p-1.5 text-gray-300 dark:text-gray-400 hover:text-gray-500 dark:hover:text-gray-200 transition-colors"
+              className="p-1.5 text-gray-300 dark:text-slate-500 hover:text-gray-500 dark:hover:text-slate-300 transition-colors"
              >
                <Icons.Folder className="w-5 h-5" />
              </button>
@@ -120,13 +129,13 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
           <Tooltip content="Toggle Billable" shortcut="B">
             <button 
               onClick={() => onUpdateActive({ isBillable: !activeEntry?.isBillable })}
-              className={`p-2 rounded-xl transition-all ${activeEntry?.isBillable ? 'text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400' : 'text-gray-300 dark:text-gray-500 hover:text-gray-400 dark:hover:text-gray-300'}`}
+              className={`p-2 rounded-xl transition-all ${activeEntry?.isBillable ? 'text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400' : 'text-gray-300 dark:text-slate-600 hover:text-gray-400 dark:hover:text-slate-400'}`}
             >
               <Icons.Dollar className="w-5 h-5" />
             </button>
           </Tooltip>
 
-          <div className="text-2xl font-mono tabular-nums text-gray-900 dark:text-[#fdfaf7] font-bold min-w-[110px] text-center">
+          <div className="text-2xl font-mono tabular-nums text-gray-900 dark:text-slate-100 font-bold min-w-[110px] text-center">
             {isManual ? calculateManualDuration() : formatDuration(elapsed)}
           </div>
 
@@ -135,7 +144,7 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
                <Tooltip content={isManual ? "Switch to Timer" : "Switch to Manual"}>
                  <button 
                   onClick={() => setIsManual(!isManual)}
-                  className={`p-2 rounded-xl transition-all border border-gray-100 dark:border-dark-border ${isManual ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                  className={`p-2 rounded-xl transition-all border border-gray-100 dark:border-slate-800 ${isManual ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                  >
                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -175,25 +184,25 @@ export const TrackerBar: React.FC<TrackerBarProps> = ({
 
       {/* Manual Entry Row */}
       {isManual && !isRunning && (
-        <div className="bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-dark-border px-6 py-4 flex flex-col items-center justify-center gap-3 animate-modal rounded-b-2xl">
+        <div className="bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-800 px-6 py-4 flex flex-col items-center justify-center gap-3 animate-modal rounded-b-2xl">
           <div className="flex items-center gap-8">
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest text-center">From</label>
+              <label className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest text-center">From</label>
               <input 
                 type="time" 
                 value={manualFrom} 
                 onChange={(e) => setManualFrom(e.target.value)}
-                className={`bg-white dark:bg-dark-surface border rounded-lg px-3 py-2 text-sm font-bold dark:text-white focus:outline-none focus:ring-4 transition-all cursor-pointer ${hasConflict ? 'border-red-400 focus:ring-red-500/10' : 'border-gray-200 dark:border-dark-border focus:ring-blue-500/10'}`}
+                className={`bg-white dark:bg-slate-800 border rounded-lg px-3 py-2 text-sm font-bold dark:text-slate-100 focus:outline-none focus:ring-4 transition-all cursor-pointer ${hasConflict ? 'border-red-400 focus:ring-red-500/10' : 'border-gray-200 dark:border-slate-700 focus:ring-blue-500/10'}`}
               />
             </div>
-            <div className="w-4 h-px bg-gray-300 dark:bg-dark-border self-end mb-5"></div>
+            <div className="w-4 h-px bg-gray-300 dark:bg-slate-700 self-end mb-5"></div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest text-center">To</label>
+              <label className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest text-center">To</label>
               <input 
                 type="time" 
                 value={manualTo} 
                 onChange={(e) => setManualTo(e.target.value)}
-                className={`bg-white dark:bg-dark-surface border rounded-lg px-3 py-2 text-sm font-bold dark:text-white focus:outline-none focus:ring-4 transition-all cursor-pointer ${hasConflict ? 'border-red-400 focus:ring-red-500/10' : 'border-gray-200 dark:border-dark-border focus:ring-blue-500/10'}`}
+                className={`bg-white dark:bg-slate-800 border rounded-lg px-3 py-2 text-sm font-bold dark:text-slate-100 focus:outline-none focus:ring-4 transition-all cursor-pointer ${hasConflict ? 'border-red-400 focus:ring-red-500/10' : 'border-gray-200 dark:border-slate-700 focus:ring-blue-500/10'}`}
               />
             </div>
           </div>

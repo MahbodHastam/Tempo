@@ -1,9 +1,10 @@
-
 export interface Project {
   id: string;
   name: string;
   color: string;
   clientName?: string;
+  hourlyRate?: number;
+  currency?: 'USD' | 'IRT';
 }
 
 export interface TimeEntry {

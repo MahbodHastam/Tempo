@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TimeEntry, Project } from '../types';
 import { Icons } from '../constants';
 import { formatDuration, formatCurrency } from '../utils';
@@ -13,6 +13,8 @@ interface EntryRowProps {
   onDelete: (id: string) => void;
   onContinue: (entry: TimeEntry) => void;
   onUpdateDescription: (id: string, description: string) => void;
+  onUpdateEntryTime: (id: string, start: number, end?: number) => boolean;
+  onToggleBillable: (id: string) => void;
 }
 
 export const EntryRow: React.FC<EntryRowProps> = ({
@@ -24,16 +26,28 @@ export const EntryRow: React.FC<EntryRowProps> = ({
   className = '',
   onDelete,
   onContinue,
-  onUpdateDescription
+  onUpdateDescription,
+  onUpdateEntryTime,
+  onToggleBillable
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showTimeEdit, setShowTimeEdit] = useState(false);
   const [desc, setDesc] = useState(entry.description);
+  
+  const timePopoverRef = useRef<HTMLDivElement>(null);
+
+  const formatTimeInput = (timestamp: number) => {
+    return new Date(timestamp).toTimeString().slice(0, 5);
+  };
+
+  const [editFrom, setEditFrom] = useState(formatTimeInput(entry.startTime));
+  const [editTo, setEditTo] = useState(entry.endTime ? formatTimeInput(entry.endTime) : '');
+
   const duration = (entry.endTime || entry.startTime) - entry.startTime;
 
   useEffect(() => {
     if (!showDeleteConfirm) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -44,15 +58,46 @@ export const EntryRow: React.FC<EntryRowProps> = ({
         setShowDeleteConfirm(false);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showDeleteConfirm, entry.id, onDelete]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (timePopoverRef.current && !timePopoverRef.current.contains(e.target as Node)) {
+        setShowTimeEdit(false);
+      }
+    };
+    if (showTimeEdit) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTimeEdit]);
 
   const handleBlur = () => {
     setIsEditing(false);
     onUpdateDescription(entry.id, desc);
   };
+
+  const handleTimeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const datePart = new Date(entry.startTime);
+    const [fH, fM] = editFrom.split(':').map(Number);
+    const start = new Date(datePart.setHours(fH, fM, 0, 0)).getTime();
+    
+    let end: number | undefined = undefined;
+    if (entry.endTime) {
+      const [tH, tM] = editTo.split(':').map(Number);
+      end = new Date(datePart.setHours(tH, tM, 0, 0)).getTime();
+      if (end <= start) end += 24 * 60 * 60 * 1000;
+    }
+
+    if (onUpdateEntryTime(entry.id, start, end)) {
+      setShowTimeEdit(false);
+    }
+  };
+
+  const itemCurrency = project?.currency || currency;
 
   return (
     <div className={`group hover:bg-gray-50/50 dark:hover:bg-white/[0.03] flex items-center px-6 py-4 transition-colors relative ${isSelected ? 'bg-blue-50/30 dark:bg-blue-500/5' : ''} ${className}`}>
@@ -101,23 +146,67 @@ export const EntryRow: React.FC<EntryRowProps> = ({
       </div>
 
       <div className="flex items-center gap-8 ml-4">
-        <Icons.Dollar className={`w-5 h-5 ${entry.isBillable ? 'text-blue-500 dark:text-blue-400' : 'text-gray-200 dark:text-gray-600'}`} />
+        <button 
+          onClick={() => onToggleBillable(entry.id)}
+          className={`p-2 rounded-lg transition-colors ${entry.isBillable ? 'text-blue-500 bg-blue-500/5 hover:bg-blue-500/10' : 'text-gray-200 dark:text-gray-700 hover:text-gray-400'}`}
+        >
+          <Icons.Dollar className="w-5 h-5" />
+        </button>
         
-        <div className="text-right hidden sm:block">
-          <p className="text-[10px] font-black text-gray-300 dark:text-gray-500 uppercase">
+        <div className="text-right hidden sm:block relative">
+          <button 
+            onClick={() => setShowTimeEdit(!showTimeEdit)}
+            className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase hover:text-blue-500 transition-colors"
+          >
             {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
             {entry.endTime ? new Date(entry.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
-          </p>
+          </button>
+
+          {showTimeEdit && (
+            <div 
+              ref={timePopoverRef}
+              className="absolute right-0 bottom-full mb-3 z-[100] bg-white dark:bg-dark-surface border border-gray-100 dark:border-dark-border shadow-2xl rounded-2xl p-4 min-w-[200px] animate-modal"
+            >
+              <form onSubmit={handleTimeSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">From</label>
+                    <input 
+                      type="time" 
+                      value={editFrom}
+                      onChange={(e) => setEditFrom(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-dark-border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">To</label>
+                    <input 
+                      type="time" 
+                      value={editTo}
+                      disabled={!entry.endTime}
+                      onChange={(e) => setEditTo(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-dark-border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 disabled:opacity-30"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className="flex-1 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg hover:bg-blue-700 transition-colors">Apply</button>
+                  <button type="button" onClick={() => setShowTimeEdit(false)} className="flex-1 bg-gray-100 dark:bg-white/5 text-gray-400 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg">Cancel</button>
+                </div>
+              </form>
+              <div className="w-2.5 h-2.5 bg-white dark:bg-dark-surface border-r border-b border-gray-100 dark:border-dark-border rotate-45 absolute -bottom-1.5 right-6"></div>
+            </div>
+          )}
         </div>
 
-        <div className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+        <div className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200 tabular-nums min-w-[80px] text-right">
           {formatDuration(duration)}
         </div>
 
         {entry.isBillable && (
             <div className="text-right min-w-[80px]">
                 <p className="text-sm font-black text-gray-900 dark:text-white">
-                    {formatCurrency((duration / 3600000) * entry.hourlyRate, currency)}
+                    {formatCurrency((duration / 3600000) * entry.hourlyRate, itemCurrency)}
                 </p>
             </div>
         )}

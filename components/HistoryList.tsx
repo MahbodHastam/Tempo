@@ -14,6 +14,8 @@ interface HistoryListProps {
   onDelete: (id: string) => void;
   onContinue: (entry: TimeEntry) => void;
   onUpdateDescription: (id: string, description: string) => void;
+  onUpdateEntryTime: (id: string, start: number, end?: number) => boolean;
+  onToggleBillable: (id: string) => void;
 }
 
 export const HistoryList: React.FC<HistoryListProps> = ({
@@ -25,9 +27,16 @@ export const HistoryList: React.FC<HistoryListProps> = ({
   onToggleSelectGroup,
   onDelete,
   onContinue,
-  onUpdateDescription
+  onUpdateDescription,
+  onUpdateEntryTime,
+  onToggleBillable
 }) => {
   const sortedGroups = groupEntriesByDate<TimeEntry>(entries);
+
+  // Get date strings and sort them reverse chronologically
+  const sortedDateKeys = Object.keys(sortedGroups).sort((a, b) => {
+    return new Date(sortedGroups[b][0].startTime).getTime() - new Date(sortedGroups[a][0].startTime).getTime();
+  });
 
   if (entries.length === 0) {
     return (
@@ -45,7 +54,8 @@ export const HistoryList: React.FC<HistoryListProps> = ({
 
   return (
     <div className="space-y-12 pb-24">
-      {Object.entries(sortedGroups).map(([date, groupEntries]) => {
+      {sortedDateKeys.map((date) => {
+        const groupEntries = sortedGroups[date].sort((a, b) => b.startTime - a.startTime);
         const dateTotal = groupEntries.reduce((acc, curr) => acc + ((curr.endTime || curr.startTime) - curr.startTime), 0);
         const groupIds = groupEntries.map(e => e.id);
         const allInGroupSelected = groupIds.every(id => selectedIds.has(id));
@@ -84,9 +94,12 @@ export const HistoryList: React.FC<HistoryListProps> = ({
                   currency={currency}
                   isSelected={selectedIds.has(entry.id)}
                   onSelectToggle={onToggleSelectId}
+                  /* Fixed: Changed deleteEntry to onDelete as per HistoryListProps */
                   onDelete={onDelete}
                   onContinue={onContinue}
                   onUpdateDescription={onUpdateDescription}
+                  onUpdateEntryTime={onUpdateEntryTime}
+                  onToggleBillable={onToggleBillable}
                   className={`
                     ${index === 0 ? 'rounded-t-2xl' : ''} 
                     ${index === groupEntries.length - 1 ? 'rounded-b-2xl' : ''}
